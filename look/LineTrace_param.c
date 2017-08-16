@@ -23,7 +23,7 @@ void LineTrace_param(int status, int8_t* forward, float* kp, float* ki, float* k
 	/* 配列の要素数計算 */
 	//int buf_size_c = sizeof(buf[0])/sizeof(buf[0][0]);/*4*/
 	//int buf_size_l = sizeof(buf)/sizeof(buf[0]);/*9*/
-	
+	/*
 	switch(status){
 	
 	case 1:
@@ -118,11 +118,12 @@ void LineTrace_param(int status, int8_t* forward, float* kp, float* ki, float* k
 		break;
 	}
 
+	*/
 	/* 値を代入 */
-	*forward = param[1];
-	*kp = (float)param[2]/100;
-	*ki = (float)param[3]/100;
-	*kd = (float)param[4]/100;
+	*forward = 45;//param[1];
+	*kp = (float)75/100;
+	*ki = 0;
+	*kd = 0;
 }
 
 

@@ -25,6 +25,7 @@
 #include "Calibration.h"
 #include "judgeSection.h"
 #include "CalcDistanceAndDirection.h"
+#include "lookup.h"
 
 using namespace ev3api;
 
@@ -67,14 +68,15 @@ static void Init();
 void Finalize();
 //超音波センサ
 static int32_t sonar_alert(void);
-//しっぽコントロール
-static bool tail_control(int32_t angle, tailSpeed sp);
 //マップ情報読み込み関数
 void readMapdata();
 //PIDパラメータ読み込み関数
 void readPIDdata();
 //
 void split(char* s, const std::string& delim,int i);
+
+//しっぽ
+static bool tail_control(int32_t angle, tailSpeed sp);
 
 /* オブジェクトへのポインタ定義 */
 TouchSensor*    touchSensor;
@@ -90,7 +92,7 @@ Clock*          clock;
 /* メインタスク */
 void main_task(intptr_t unused)
 {
-    int8_t forward;      /* 前後進命令 */
+	int8_t forward;      /* 前後進命令 */
 	float turn;         /* 旋回命令 */
 	int8_t pwm_L, pwm_R; /* 左右モータPWM出力 */
 	int8_t cur_brightness=0;	/* 検出した光センサ値 */
@@ -99,6 +101,8 @@ void main_task(intptr_t unused)
 	int min=255;//キャリブレーションの最小値
 	bool ret = false;
 	int section=1; //現在の区間
+	int sonar_count=0;
+
 
 	/*グローバル変数の初期化*/
 	count = 1;
@@ -107,20 +111,20 @@ void main_task(intptr_t unused)
 	Init();
 	
 	/* 尻尾モーターのリセット */
-    tailMotor->reset();
+    	tailMotor->reset();
 
 	
-    /* Open Bluetooth file */
+	/* Open Bluetooth file */
 	/*シリアルポートを開く*/
 	bt = ev3_serial_open_file(EV3_SERIAL_BT);
 	assert(bt != NULL);
 	Message("bluetooth serial port open");
     
-    /* Bluetooth通信タスクの起動 */
+    	/* Bluetooth通信タスクの起動 */
 	act_tsk(BT_TASK);
 	Message("Bluetooth task Start");
 	
-    ev3_led_set_color(LED_ORANGE); /* 初期化完了通知 */
+    	ev3_led_set_color(LED_ORANGE); /* 初期化完了通知 */
 	Message("Init finished.");
 	
 	//キャリブレーション
@@ -131,7 +135,7 @@ void main_task(intptr_t unused)
 	Calibration(&min, &max, colorSensor, leftMotor, rightMotor, gyroSensor, tailMotor, touchSensor, clock);
 	fprintf(bt,"Calibration result\nmax:%d min:%d",max,min);
 	
-    ev3_led_set_color(LED_GREEN); /* スタート通知 */
+    	ev3_led_set_color(LED_GREEN); /* スタート通知 */
 	
 
 	//bluetooth start
@@ -143,22 +147,22 @@ void main_task(intptr_t unused)
 		if (bt_cmd == 1){//bluetooth start
 			fprintf(bt,"bluetooth start");
     		break;
-    	}
+    		}
 		if (touchSensor->isPressed())
-        {
-		 	Message("touch sensor start");
-            break; /* タッチセンサが押された */
-        }
+        	{
+			Message("touch sensor start");
+            		break; /* タッチセンサが押された */
+        	}
 		clock->sleep(10);
 	}
 	
 	/* 走行モーターエンコーダーリセット */
-    leftMotor->reset();
-    rightMotor->reset();
+    	leftMotor->reset();
+    	rightMotor->reset();
 	
 	/* ジャイロセンサーリセット */
-    gyroSensor->reset();
-    balance_init(); /* 倒立振子API初期化 */
+    	gyroSensor->reset();
+    	balance_init(); /* 倒立振子API初期化 */
 
 	/* 走行体の状態を起こす */
 	while(1)
@@ -176,21 +180,21 @@ void main_task(intptr_t unused)
 	}
 	ret = false;
 	
-    /**
-    * メインループ
-    */
-    while(1)
-    {
-    	int32_t motor_ang_l=0, motor_ang_r=0;
+	/**
+    	* メインループ
+    	*/
+    	while(1)
+    	{
+    		int32_t motor_ang_l=0, motor_ang_r=0;
 		int32_t gyro, volt=0;
-    	int target=0;
-    	int distance, direction; //走行距離、向き
+    		int target=0;
+    		int distance, direction; //走行距離、向き
     	
-    	if (ev3_button_is_pressed(BACK_BUTTON)){
-    		//backbuttonが押されると終了
-    		Message("finished...");
-    		break;
-    	}
+ 	   	if (ev3_button_is_pressed(BACK_BUTTON)){
+    			//backbuttonが押されると終了
+    			Message("finished...");
+    			break;
+    		}
 		if (touchSensor->isPressed())
 		{ 
 			// タッチセンサが押されると終了
@@ -198,98 +202,103 @@ void main_task(intptr_t unused)
 			break;
 		}
 
-    	if (gyroSensor->getAnglerVelocity() > FALL_DOWN || -(gyroSensor->getAnglerVelocity()) > FALL_DOWN)
-    	{
+	    	if (gyroSensor->getAnglerVelocity() > FALL_DOWN || -(gyroSensor->getAnglerVelocity()) > FALL_DOWN)
+    		{
 			// 転倒を検知すると終了
-	    	fprintf(bt, "getAnglerVelocity = %d\n", gyroSensor->getAnglerVelocity());
-    		fprintf(bt, "Emergency Stop.\n");
+	    		fprintf(bt, "getAnglerVelocity = %d\n", gyroSensor->getAnglerVelocity());
+    			fprintf(bt, "Emergency Stop.\n");
 			Message("finished...");
-    		break;
-    	}
+    			break;
+    		}
     	
-        if(!ret){
-        	/* バランス走行用角度に制御 */
+ 	       if(!ret){
+        		/* バランス走行用角度に制御 */
 			ret = tail_control(TAIL_ANGLE_DRIVE, eFast);
 		}
 
-        if (sonar_alert() == 1) /* 障害物検知 */
-        {
+       	 	if (sonar_alert() == 1) /* 障害物検知 */
+        	{
 			forward = turn = 0; /* 障害物を検知したら停止 */
+			sonar_count++;
+			if(sonar_count > 1000){//一定時間続いたらlookupgateするぜ
+				lookup(gyroSensor,colorSensor,leftMotor,rightMotor,tailMotor);
+				sonar_count = 0;//初期化
+			}
 		}
-        else
-        {
-        	/*
-        	//3s後に速度が45に到達するように少しずつ加速させる
-            forward = 10 + speed;
-        	speed_count = speed_count + 464;
-        	if(speed_count > 10000){
-        		if(speed < 35){
-        			speed++;
+	        else
+        	{
+        		/*
+        		//3s後に速度が45に到達するように少しずつ加速させる
+            		forward = 10 + speed;
+        		speed_count = speed_count + 464;
+        		if(speed_count > 10000){
+        			if(speed < 35){
+        				speed++;
+        			}
+        			speed_count = speed_count - 10000;
         		}
-        		speed_count = speed_count - 10000;
-        	}
-        	*/
-        	//forward = 10; /* 前進命令 */
+        		*/
+        		forward = 45; /* 前進命令 */
 			cur_brightness = colorSensor->getBrightness();
-        	target = (max + min)/2;
+        		target = (max + min)/2;
 
-        	//turn値とforwardが返り値
-			turn = LineTrace(section, target, cur_brightness, DELTA_T, &lastErr, &forward);
+        		//turn値とNULLが返り値
+			turn = LineTrace(section, target, cur_brightness, DELTA_T, &lastErr, NULL);
 		}
 
-        /* 倒立振子制御API に渡すパラメータを取得する */
-        motor_ang_l = leftMotor->getCount();
-        motor_ang_r = rightMotor->getCount();
-        gyro = gyroSensor->getAnglerVelocity();
-        volt = ev3_battery_voltage_mV();
+	        /* 倒立振子制御API に渡すパラメータを取得する */
+        	motor_ang_l = leftMotor->getCount();
+        	motor_ang_r = rightMotor->getCount();
+        	gyro = gyroSensor->getAnglerVelocity();
+        	volt = ev3_battery_voltage_mV();
 
-        /* 倒立振子制御APIを呼び出し、倒立走行するための */
-        /* 左右モータ出力値を得る */
-        balance_control(
-            (float)forward,
-            (float)turn,
-            (float)gyro,
-        	(float)GYRO_OFFSET_PID,
-            (float)motor_ang_l,
-            (float)motor_ang_r,
-            (float)volt,
-            (int8_t *)&pwm_L,
-            (int8_t *)&pwm_R);
+	        /* 倒立振子制御APIを呼び出し、倒立走行するための */
+        	/* 左右モータ出力値を得る */
+        	balance_control(
+	            	(float)forward,
+        	    	(float)turn,
+            		(float)gyro,
+        		(float)GYRO_OFFSET_PID,
+            		(float)motor_ang_l,
+            		(float)motor_ang_r,
+            		(float)volt,
+            		(int8_t *)&pwm_L,
+            		(int8_t *)&pwm_R);
 
-        leftMotor->setPWM(pwm_L);
-        rightMotor->setPWM(pwm_R);
+	        leftMotor->setPWM(pwm_L);
+        	rightMotor->setPWM(pwm_R);
 
-    	/* 距離・角度計測 */
-    	distance = 0;
-    	direction = 0;
+	    	/* 距離・角度計測 */
+    		distance = 0;
+    		direction = 0;
 		CalcDistanceAndDirection(motor_ang_l, motor_ang_r, &distance, &direction);
 
-    	//現在の区間を取得する
-    	section = judgeSection(distance,direction);
-    	//fprintf(bt, "distance = %d, direction = %d\n", distance, direction);
-    	//fprintf(bt, "cur_brightness = %d, turn = %f, forward = %d\n", cur_brightness, turn, forward);
-    	//現在の走行状況を記録
-    	float p,i,d;	//PID制御係数
-    	GetPID(&p,&i,&d);	//取得
-    	int err;	//偏差
-    	float diff;	//偏差微分
-    	GetVar(&err,&diff);	//取得
-    	fprintf(bt,"p:%f i:%f d:%f\n",p,i,d);
-    	fprintf(bt,"err:%d diff:%f\n",err,diff);
-    	fprintf(bt, "distance = %d | direction = %d | section%d \nbrightness = %d | turn = %f | forward = %d\n",distance,direction,section,cur_brightness,turn,forward);
+	    	//現在の区間を取得する
+    		section = judgeSection(distance,direction);
+    		//fprintf(bt, "distance = %d, direction = %d\n", distance, direction);
+    		//fprintf(bt, "cur_brightness = %d, turn = %f, forward = %d\n", cur_brightness, turn, forward);
+    		//現在の走行状況を記録
+    		float p,i,d;	//PID制御係数
+    		GetPID(&p,&i,&d);	//取得
+    		int err;	//偏差
+    		float diff;	//偏差微分
+    		GetVar(&err,&diff);	//取得
+    		fprintf(bt,"p:%f i:%f d:%f\n",p,i,d);
+    		fprintf(bt,"err:%d diff:%f\n",err,diff);
+    		fprintf(bt, "distance = %d | direction = %d | section%d \nbrightness = %d | turn = %f | forward = %d\n",distance,direction,section,cur_brightness,turn,forward);
     	
-        clock->sleep(4); /* 4msec周期起動 */
-    }
-    leftMotor->reset();
-    rightMotor->reset();
+        	clock->sleep(4); /* 4msec周期起動 */
+    	}
+    	leftMotor->reset();
+   	rightMotor->reset();
 	tailMotor->reset();
 
 	/*終了処理*/
 	Finalize();
-    ter_tsk(BT_TASK);
-    fclose(bt);
+	ter_tsk(BT_TASK);
+    	fclose(bt);
 
-    ext_tsk();
+    	ext_tsk();
 }
 
 //*****************************************************************************
@@ -591,3 +600,36 @@ int getlinenum(){
 void setlinenum(int num){
 	linenum = num;
 }
+
+/*
+TouchSensor* getTouchSensor(){
+	return touchSensor;
+}
+SonarSensor* getSonarSensor(){
+	return sonarSensor;
+}
+ColorSensor* getColorSensor(){
+	return colorSensor;
+}
+GyroSensor* getGyroSensor(){
+	return gyroSensor;
+}
+Motor* getLeftMotor(){
+	return leftMotor;
+}
+void setLeftMotor(Motor* motor){
+	leftMotor = motor;
+}
+Motor* getRightMotor(){
+	return rightMotor;
+}
+void setRightMotor(Motor* motor){
+	rightMotor = motor;
+}
+Motor* getTailMotor(){
+	return tailMotor;
+}
+void setTailMotor(Motor* tail){
+	tailMotor = tail;
+}
+*/

@@ -4,6 +4,9 @@
 // 
 //******
 
+#ifndef __calibration_h__
+#define __calibration_h__
+
 #include "ev3api.h"
 #include "app.h"
 #include "balancer.h"
@@ -31,3 +34,4 @@ void Calibration(int* min, int* max, ev3api::ColorSensor* colorSensor, ev3api::M
 bool tail_control_cal(int32_t angle, ev3api::Motor* tail, tailSpeed sp);
 
 
+#endif//calibration_h

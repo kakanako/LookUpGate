@@ -80,8 +80,34 @@ extern void setlinenum(int num);
 #endif /* TOPPERS_MACRO_ONLY */
 
 #ifdef __cplusplus
+
+
+//20170816 baba
+/*
+#include "ev3api.h"
+#include "balancer.h"
+#include "TouchSensor.h"
+#include "SonarSensor.h"
+#include "ColorSensor.h"
+#include "GyroSensor.h"
+#include "Motor.h"
+#include "Clock.h"
+
+extern TouchSensor* getTouchSensor();
+extern SonarSensor* getSonarSensor();
+extern ColorSensor* getColorSensor();
+extern GyroSensor* getGyroSensor();
+extern Motor* getLeftMotor();
+extern void setLeftMotor(Motor* motor);
+extern Motor* getRightMotor();
+extern void setRightMotor(Motor* motor);
+extern Motor* getTailMotor();
+extern void setTailMotor(Motor* tail);
+*/
+
 }
 #endif
+
 
 /*__api_h__*/
 #endif
